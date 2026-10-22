@@ -1,0 +1,16 @@
+# Local credentials and machine-specific state
+private/
+position.json
+installation-status.json
+original-task.xml
+original-task-security.txt
+
+# Build products, diagnostic output and generated previews
+*.exe
+*.pdb
+*.log
+preview-*.png
+Widget.previous.txt
+
+bin/
+settings.json
