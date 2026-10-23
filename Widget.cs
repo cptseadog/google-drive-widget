@@ -267,17 +267,7 @@ sealed class DriveGlyph : Control
     public DriveGlyph() { SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true); }
     protected override void OnPaint(PaintEventArgs e)
     {
-        Graphics g = e.Graphics; g.SmoothingMode = SmoothingMode.AntiAlias;
-        float scale = Width / 36f; g.ScaleTransform(scale, scale);
-        using (var shape = CardDrawing.Round(new RectangleF(0, 0, 36, 36), 11))
-        using (var brush = new SolidBrush(Theme.Tile)) g.FillPath(brush, shape);
-        using (var pen = new Pen(Theme.Accent, 1.8f))
-        {
-            pen.LineJoin = LineJoin.Round;
-            g.DrawPolygon(pen, new PointF[] { new PointF(10, 10), new PointF(26, 10), new PointF(29, 25), new PointF(7, 25) });
-            g.DrawLine(pen, 8, 21, 28, 21);
-        }
-        using (var brush = new SolidBrush(Theme.Accent)) g.FillEllipse(brush, 22, 22.4f, 2, 2);
+        WidgetLogo.Draw(e.Graphics, ClientRectangle);
     }
 }
 sealed class DriveWidget : Form
@@ -321,7 +311,7 @@ sealed class DriveWidget : Form
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false; DoubleBuffered = true;
         BackColor = theme.Surface; ClientSize = new Size(320, 202);
-        StartPosition = FormStartPosition.Manual; Icon = MakeIcon(blue);
+        StartPosition = FormStartPosition.Manual; Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         nameLabel.Text = "Google Drive"; nameLabel.Font = titleFont; nameLabel.ForeColor = ink;
         statusLabel.Font = textFont; statusLabel.ForeColor = secondaryInk;
         rowLabel.Text = "Desktop access"; rowLabel.Font = rowFont; rowLabel.ForeColor = ink;

@@ -21,7 +21,8 @@ Existing local projects such as D:\dev\Documents\Dynamic Rest Design are unaffec
 No cache or project files are deleted by the widget.
 
 MAINTENANCE
-Source project: D:\dev\Documents\seadog\google-drive-widget. Build-Widget.ps1 compiles Widget.cs and MountController.cs to the ignored bin directory. The runtime and installation files remain in D:\dev\Program Files\rclone\widget.
+Source project: D:\dev\Documents\seadog\google-drive-widget. Build-Widget.ps1 compiles Widget.cs, WidgetLogo.cs and MountController.cs to the ignored bin directory and copies the application icon there. The runtime and installation files remain in D:\dev\Program Files\rclone\widget.
+Logo: WidgetLogo.cs draws the original cloud-and-drive mark. Generate-Icon.ps1 regenerates the committed assets/GoogleDriveWidget.ico (16-256 px) and PNG preview. The build embeds the ICO into the executable; shortcuts use the deployed ICO. The tray retains its connection-status colors.
 Design previews: GoogleDriveWidget.exe --preview off (follows Windows); add --theme light or --theme dark to preview either palette. Theme overrides apply only in preview mode and never change Windows settings or the mount.
 The controller listens only on 127.0.0.1:5579, requires authentication, and is present only while mounted.
 The private directory holds a password encrypted for the dev Windows account and an htpasswd hash. Never share these files.

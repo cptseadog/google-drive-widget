@@ -8,6 +8,7 @@ $shell = New-Object -ComObject WScript.Shell
 foreach ($directory in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Startup'))) {
     $shortcut = $shell.CreateShortcut((Join-Path $directory 'Google Drive Widget.lnk'))
     $shortcut.TargetPath = Join-Path $PSScriptRoot 'GoogleDriveWidget.exe'
+    $shortcut.IconLocation = (Join-Path $PSScriptRoot 'GoogleDriveWidget.ico') + ',0'
     $shortcut.WorkingDirectory = $PSScriptRoot
     $shortcut.Description = 'Show the Google Drive on/off widget. Opening this widget does not mount Drive.'
     $shortcut.Save()
