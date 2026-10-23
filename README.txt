@@ -8,8 +8,8 @@ If an upload fails or status cannot be verified, Drive stays mounted. Cancel let
 
 Opening the widget never mounts Drive. Its sign-in shortcut only displays status.
 The card, switch, menus and tooltips follow Windows' light/dark app theme automatically, including changes while the widget is open. In Windows' Custom color mode, the app mode determines the widget appearance.
-Drag the header to move the card. Its three-dot menu has Hide widget, Keep on top, Status details, Help and Quit widget.
-Double-click its tray icon or the desktop shortcut to show it again. Quitting the widget leaves the current mount as it is.
+Drag the header to move the card. The slim bar at the top right hides the card. The compact three-dot menu at the bottom right opens upward and has Keep on top, Status details, Help and Quit widget.
+The widget has no taskbar button. Click its tray icon or open the desktop shortcut to show it again. Quitting the widget leaves the current mount as it is.
 The widget is installed for dev; the existing shared mount permissions are preserved.
 
 GOOGLE DRIVE PLUGIN AND RESEARCH
@@ -40,11 +40,11 @@ To update the runnable widget, quit the widget UI first (quitting does not stop 
 If setup scripts or this README change, copy the changed files into the runtime folder before using them. Run Prepare-Widget.ps1, Install-Widget.ps1 and Enable-WidgetStartup.ps1 from the runtime folder, not the source checkout: they deliberately use their own directory for settings, credentials, backups and shortcuts.
 
 INSTALL THIS PREPARED COPY
-The current runtime executable and protected credentials are already prepared. Save and close open Drive documents. From normal PowerShell as dev, run:
-  $install = Start-Process powershell.exe -Verb RunAs -WindowStyle Hidden -Wait -PassThru -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File "D:\dev\Program Files\rclone\widget\Install-Widget.ps1"'
+The current runtime executable and protected credentials are already prepared. Save and close open Drive documents. Open a normal, non-administrator PowerShell window in the dev session. Run whoami and confirm LAPTOP-260905\dev; do not run the full sequence as axwwxs. Only the Start-Process -Verb RunAs step below uses the administrator account. Then run:
+  $install = Start-Process powershell.exe -Verb RunAs -WindowStyle Normal -Wait -PassThru -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File "D:\dev\Program Files\rclone\widget\Install-Widget.ps1"'
   if ($install.ExitCode -ne 0) { throw 'Installation failed. Read D:\dev\Program Files\rclone\widget\installation-status.json for details.' }
   powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'D:\dev\Program Files\rclone\widget\Enable-WidgetStartup.ps1'
   if ($LASTEXITCODE -ne 0) { throw 'Widget shortcut setup failed.' }
   Start-Process 'D:\dev\Program Files\rclone\widget\GoogleDriveWidget.exe'
 
-Windows prompts for administrator credentials only for the task update. The shortcut step runs as dev. Installation leaves Drive OFF and adds the widget at sign-in. A completed installation still needs an initial ON/OFF check to confirm the stored task credentials work.
+Windows first prompts for administrator approval, then the installer requests the dev Windows account password in a credential prompt to update the existing password-logon task. Use the dev account password, not a Windows Hello PIN or the administrator password. The installer does not write the password to its files or command line; Task Scheduler stores the task login as before. The shortcut step runs as dev. Installation leaves Drive OFF and adds the widget at sign-in. A completed installation still needs an initial ON/OFF check to confirm the stored task credentials work.

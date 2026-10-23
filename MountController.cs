@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -448,6 +449,10 @@ internal sealed class WindowsMountEnvironment : IMountEnvironment
         request.ContentLength = body.Length;
         try
         {
+            // A closed loopback port can take slightly longer than the HTTP
+            // timeout to report ConnectionRefused on Windows. Check the local
+            // listener table so a clean unmount is not mistaken for a timeout.
+            if (!ControlPortHasListener()) throw new MountEndpointAbsentException();
             using (Stream stream = request.GetRequestStream()) stream.Write(body, 0, body.Length);
             using (var response = (HttpWebResponse)request.GetResponse())
             {
@@ -471,7 +476,8 @@ internal sealed class WindowsMountEnvironment : IMountEnvironment
         }
         catch (WebException ex)
         {
-            if (ex.Status == WebExceptionStatus.ConnectFailure && IsConnectionRefused(ex))
+            if ((ex.Status == WebExceptionStatus.ConnectFailure && IsConnectionRefused(ex)) ||
+                ((ex.Status == WebExceptionStatus.Timeout || ex.Status == WebExceptionStatus.ConnectFailure) && !ControlPortHasListener()))
                 throw new MountEndpointAbsentException();
             var response = ex.Response as HttpWebResponse;
             if (response != null)
@@ -485,6 +491,20 @@ internal sealed class WindowsMountEnvironment : IMountEnvironment
         }
     }
 
+    private bool ControlPortHasListener()
+    {
+        try
+        {
+            int port = new Uri(settings.Endpoint).Port;
+            // Treat any listener on this port as potentially reachable, including
+            // dual-stack IPv6 listeners. Uncertainty must fall back to HTTP.
+            foreach (IPEndPoint endpoint in IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners())
+                if (endpoint.Port == port) return true;
+            return false;
+        }
+        catch (NetworkInformationException) { return true; }
+        catch (System.Security.SecurityException) { return true; }
+    }
     private static bool IsConnectionRefused(Exception error)
     {
         for (Exception current = error; current != null; current = current.InnerException)

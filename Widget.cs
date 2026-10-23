@@ -99,8 +99,63 @@ sealed class ThemeMenuColors : ProfessionalColorTable
 sealed class ThemeButton : Button
 {
     public Color DisabledInk = Color.Gray;
+    public bool QuietChrome, DrawDots, DrawHideBar;
+    bool hovered, pressed;
+    protected override void OnMouseEnter(EventArgs e) { hovered = true; Invalidate(); base.OnMouseEnter(e); }
+    protected override void OnMouseLeave(EventArgs e) { hovered = pressed = false; Invalidate(); base.OnMouseLeave(e); }
+    protected override void OnMouseDown(MouseEventArgs e) { pressed = e.Button == MouseButtons.Left; Invalidate(); base.OnMouseDown(e); }
+    protected override void OnMouseUp(MouseEventArgs e) { pressed = false; Invalidate(); base.OnMouseUp(e); }
+    protected override void OnGotFocus(EventArgs e) { base.OnGotFocus(e); Invalidate(); }
+    protected override void OnLostFocus(EventArgs e) { pressed = false; base.OnLostFocus(e); Invalidate(); }
+    protected override void OnSizeChanged(EventArgs e)
+    {
+        base.OnSizeChanged(e);
+        if (DrawDots && Width > 0 && Height > 0)
+        {
+            using (var circle = new GraphicsPath())
+            {
+                circle.AddEllipse(ClientRectangle);
+                Region old = Region; Region = new Region(circle);
+                if (old != null) old.Dispose();
+            }
+        }
+    }
     protected override void OnPaint(PaintEventArgs e)
     {
+        if (QuietChrome)
+        {
+            Graphics g = e.Graphics; g.Clear(BackColor); g.SmoothingMode = SmoothingMode.AntiAlias;
+            bool highlighted = hovered || pressed || (Focused && ShowFocusCues);
+            if ((!DrawDots && !DrawHideBar) || highlighted)
+            {
+                Color fill = pressed ? FlatAppearance.MouseDownBackColor : FlatAppearance.MouseOverBackColor;
+                float radius = (DrawDots || DrawHideBar) ? Height / 2f : Height / 3f;
+                using (var shape = CardDrawing.Round(new RectangleF(0.5f, 0.5f, Width - 1, Height - 1), radius - 0.5f))
+                using (var brush = new SolidBrush(fill)) g.FillPath(brush, shape);
+            }
+            if (DrawHideBar)
+            {
+                using (var pen = new Pen(ForeColor, Math.Max(2, Height / 6f)))
+                {
+                    pen.StartCap = pen.EndCap = LineCap.Round;
+                    g.DrawLine(pen, Width * 0.25f, Height / 2f, Width * 0.75f, Height / 2f);
+                }
+            }
+            else if (DrawDots)
+            {
+                float size = Math.Max(2, Height / 9f);
+                using (var brush = new SolidBrush(ForeColor))
+                    for (int i = -1; i <= 1; i++) g.FillEllipse(brush, Width / 2f + i * Width / 4f - size / 2, Height / 2f - size / 2, size, size);
+            }
+            else
+            {
+                TextRenderer.DrawText(g, Text, Font, ClientRectangle, ForeColor,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
+                if (Focused && ShowFocusCues)
+                    using (var pen = new Pen(ForeColor, 1)) g.DrawLine(pen, Width * 0.4f, Height - 4, Width * 0.6f, Height - 4);
+            }
+            return;
+        }
         if (Enabled) { base.OnPaint(e); return; }
         // WinForms' default disabled text becomes black on a dark flat button.
         e.Graphics.Clear(BackColor);
@@ -231,7 +286,7 @@ sealed class DriveWidget : Form
     readonly Label nameLabel = new Label(), statusLabel = new Label(), rowLabel = new Label(), hintLabel = new Label(), previewLabel = new Label();
     readonly DriveGlyph glyph = new DriveGlyph();
     readonly IosSwitch toggle = new IosSwitch();
-    readonly ThemeButton folder = new ThemeButton(), secondary = new ThemeButton(), more = new ThemeButton();
+    readonly ThemeButton folder = new ThemeButton(), secondary = new ThemeButton(), more = new ThemeButton(), hideBar = new ThemeButton();
     readonly NotifyIcon tray = new NotifyIcon();
     readonly ContextMenuStrip menu = new ContextMenuStrip();
     readonly System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer();
@@ -264,7 +319,7 @@ sealed class DriveWidget : Form
         AutoScaleMode = AutoScaleMode.None; Font = textFont;
         Text = preview == null ? "Google Drive" : "Google Drive — design preview";
         FormBorderStyle = FormBorderStyle.None;
-        ShowInTaskbar = true; DoubleBuffered = true;
+        ShowInTaskbar = false; DoubleBuffered = true;
         BackColor = theme.Surface; ClientSize = new Size(320, 202);
         StartPosition = FormStartPosition.Manual; Icon = MakeIcon(blue);
         nameLabel.Text = "Google Drive"; nameLabel.Font = titleFont; nameLabel.ForeColor = ink;
@@ -274,10 +329,15 @@ sealed class DriveWidget : Form
         previewLabel.Font = textFont; previewLabel.ForeColor = secondaryInk; previewLabel.Text = "Preview"; previewLabel.Visible = preview != null;
         foreach (var label in new[] { nameLabel, statusLabel, rowLabel, hintLabel, previewLabel }) { label.AutoSize = false; label.AutoEllipsis = true; label.UseMnemonic = false; label.TextAlign = ContentAlignment.MiddleLeft; }
         SetupLink(folder, "Open folder  ↗"); SetupLink(secondary, "Retry"); SetupLink(more, "⋯");
+        more.QuietChrome = true; more.DrawDots = true;
+        SetupLink(hideBar, ""); hideBar.QuietChrome = true; hideBar.DrawHideBar = true; hideBar.AccessibleName = "Hide widget";
+        hideBar.Click += delegate { SavePosition(); Hide(); };
+        tips.SetToolTip(hideBar, "Hide widget. Click the tray icon to show it again.");
         more.Font = menuFont; more.TextAlign = ContentAlignment.MiddleCenter; more.AccessibleName = "Widget menu";
         folder.AccessibleName = "Open Google Drive folder";
-        toggle.TabIndex = 0; folder.TabIndex = 1; secondary.TabIndex = 2; more.TabIndex = 3;
-        Controls.AddRange(new Control[] { glyph, nameLabel, statusLabel, rowLabel, hintLabel, toggle, folder, secondary, more, previewLabel });
+        glyph.TabStop = false;
+        toggle.TabIndex = 0; folder.TabIndex = 1; secondary.TabIndex = 2; hideBar.TabIndex = 3; more.TabIndex = 4;
+        Controls.AddRange(new Control[] { glyph, nameLabel, statusLabel, rowLabel, hintLabel, toggle, folder, secondary, more, hideBar, previewLabel });
         toggle.Click += async delegate { await Toggle(); };
         folder.Click += delegate
         {
@@ -292,20 +352,19 @@ sealed class DriveWidget : Form
             if (refreshing || quitSent) return;
             stopRequested = null; operationError = null; await RefreshState();
         };
-        menu.Items.Add("Hide widget", null, delegate { SavePosition(); Hide(); });
         menu.Items.Add("Keep on top", null, delegate(object s, EventArgs e) { TopMost = !TopMost; ((ToolStripMenuItem)s).Checked = TopMost; });
         menu.Items.Add("Status details", null, delegate { ShowDetails(); });
         menu.Items.Add("Help", null, delegate { Process.Start(Path.Combine(root, "README.txt")); });
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Quit widget", null, delegate { exiting = true; Close(); });
-        more.Click += delegate { menu.Show(more, new Point(more.Width - menu.Width, more.Height)); };
+        more.Click += delegate { menu.Show(more, new Point(more.Width, 0), ToolStripDropDownDirection.AboveLeft); };
         if (preview == null)
         {
             tray.ContextMenuStrip = new ContextMenuStrip();
             tray.ContextMenuStrip.Items.Add("Show widget", null, delegate { Reveal(); });
             tray.ContextMenuStrip.Items.Add("Quit widget", null, delegate { exiting = true; Close(); });
             tray.Icon = MakeIcon(secondaryInk); tray.Visible = true; tray.Text = "Google Drive — checking";
-            tray.DoubleClick += delegate { Reveal(); };
+            tray.MouseClick += delegate(object sender, MouseEventArgs e) { if (e.Button == MouseButtons.Left) Reveal(); };
         }
         foreach (Control header in new Control[] { glyph, nameLabel, statusLabel }) header.MouseDown += DragHeader;
         timer.Interval = 3000; timer.Tick += async delegate { RefreshTheme(); if (preview == null) await RefreshState(); };
@@ -359,13 +418,14 @@ sealed class DriveWidget : Form
         foreach (var label in new[] { nameLabel, statusLabel, rowLabel, hintLabel, previewLabel }) label.BackColor = theme.Surface;
         nameLabel.ForeColor = rowLabel.ForeColor = ink;
         hintLabel.ForeColor = previewLabel.ForeColor = secondaryInk;
-        foreach (var button in new[] { folder, secondary, more })
+        foreach (var button in new[] { folder, secondary, more, hideBar })
         {
             button.BackColor = theme.Surface; button.ForeColor = blue;
             button.DisabledInk = theme.Disabled;
             button.FlatAppearance.MouseOverBackColor = theme.Hover;
             button.FlatAppearance.MouseDownBackColor = theme.Pressed;
         }
+        hideBar.ForeColor = secondaryInk;
         toggle.Theme = theme; toggle.BackColor = theme.Surface;
         glyph.Theme = theme; glyph.BackColor = theme.Surface;
         ThemeMenu(menu); ThemeMenu(tray.ContextMenuStrip);
@@ -378,6 +438,7 @@ sealed class DriveWidget : Form
             tray.Icon = MakeIcon(visualState == "On" ? green : visualBusy ? Color.FromArgb(226, 160, 34) : secondaryInk);
             if (previous != null) previous.Dispose();
         }
+        ApplyNativeFrame();
         Invalidate(true);
     }
     bool InstallComplete()
@@ -396,8 +457,9 @@ sealed class DriveWidget : Form
         using (Graphics graphics = CreateGraphics()) scale = graphics.DpiX / 96f;
         ClientSize = new Size(Px(320), Px(202));
         Place(glyph, 20, 20, 36, 36); Place(nameLabel, 68, 17, 198, 25); Place(statusLabel, 68, 41, 200, 20);
-        Place(more, 276, 17, 28, 28); Place(rowLabel, 20, 86, 210, 24); Place(hintLabel, 20, 111, 210, 22);
-        Place(toggle, 242, 90, 60, 36); Place(folder, 15, 157, 180, 30); Place(secondary, 222, 157, 84, 30); Place(previewLabel, 243, 160, 60, 24);
+        Place(more, 282, 162, 20, 20); Place(rowLabel, 20, 86, 210, 24); Place(hintLabel, 20, 111, 210, 22);
+        Place(toggle, 242, 90, 60, 36); Place(folder, 15, 157, 175, 30); Place(secondary, 192, 157, 80, 30); Place(previewLabel, 210, 160, 60, 24);
+        Place(hideBar, 278, 6, 28, 14);
         using (var shape = CardDrawing.Round(new RectangleF(0, 0, Width, Height), Px(23)))
         { Region old = Region; Region = new Region(shape); if (old != null) old.Dispose(); }
         layoutReady = true;
@@ -422,9 +484,28 @@ sealed class DriveWidget : Form
     {
         base.OnPaint(e); if (!layoutReady) return;
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using (var edge = CardDrawing.Round(new RectangleF(0.5f, 0.5f, Width - 1, Height - 1), Px(23)))
+        // Keep the antialiased stroke inside the hard window-region clip. Drawing
+        // on the clip boundary cuts individual pixels out of the rounded outline.
+        const float inset = 1.5f;
+        using (var edge = CardDrawing.Round(new RectangleF(inset, inset, Width - 2 * inset, Height - 2 * inset), Px(23) - inset))
         using (var pen = new Pen(theme.Border, 1)) e.Graphics.DrawPath(pen, edge);
         using (var pen = new Pen(theme.Divider, Math.Max(1, scale))) e.Graphics.DrawLine(pen, Px(20), Px(146), Width - Px(20), Px(146));
+    }
+    [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr window, int attribute, ref int value, int size);
+    void ApplyNativeFrame()
+    {
+        if (!IsHandleCreated || theme == null) return;
+        // We draw the entire card outline. Suppress Windows' extra light frame,
+        // which can otherwise leave bright pixels around a custom window region.
+        // Unsupported attributes return an HRESULT; older Windows keeps our outline.
+        int noBorder = unchecked((int)0xFFFFFFFE), dark = theme.Dark ? 1 : 0;
+        DwmSetWindowAttribute(Handle, 34, ref noBorder, sizeof(int)); // DWMWA_BORDER_COLOR
+        DwmSetWindowAttribute(Handle, 20, ref dark, sizeof(int)); // DWMWA_USE_IMMERSIVE_DARK_MODE
+    }
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        ApplyNativeFrame();
     }
     [DllImport("user32.dll")] static extern bool ReleaseCapture();
     [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr h, int m, IntPtr w, IntPtr l);
