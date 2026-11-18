@@ -241,7 +241,7 @@ internal static class TestMountController
             Now = Requested.AddSeconds(1);
             Backend.Task.LastRunUtc = Requested.AddMinutes(-10);
             Backend.Log = Log(Now, 0, 0, 0);
-            Controller = new MountController(new MountSettings { ExpectedRemote = "gdrive:", MountPath = @"D:\dev\GoogleDrive" },
+            Controller = new MountController(new MountSettings { ExpectedRemote = "gdrive:", MountPath = @"C:\Mounts\DemoDrive" },
                 Backend, delegate { return Now; });
         }
     }

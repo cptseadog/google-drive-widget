@@ -2,8 +2,12 @@
 private/
 position.json
 installation-status.json
+.setup.lock
 original-task.xml
 original-task-security.txt
+rclone.conf
+rclone.conf.old
+*.htpasswd
 
 # Build products, diagnostic output and generated previews
 *.exe

@@ -1,9 +1,15 @@
 #Requires -Version 5.1
-# Run as dev after the administrator task update succeeded.
+# Run as the mount task owner after installation succeeds.
 $ErrorActionPreference = 'Stop'
-if ([Security.Principal.WindowsIdentity]::GetCurrent().User.Value -ne 'S-1-5-21-3637571768-966278147-2091930766-1002') { throw 'Run this as dev.' }
+$settings = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'settings.json') -Raw | ConvertFrom-Json
+$accountSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+if ($settings.AccountSid -and $settings.AccountSid -ne $accountSid) { throw 'Run this as the account that prepared the widget.' }
 $install = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'installation-status.json') -Raw | ConvertFrom-Json
 if ($install.State -ne 'Installed') { throw 'Complete the task installation first.' }
+Add-Type -AssemblyName System.Security
+# Prove that the current account can read the credential, including older settings without an AccountSid.
+$bytes = [Security.Cryptography.ProtectedData]::Unprotect([IO.File]::ReadAllBytes($settings.CredentialPath), $null, [Security.Cryptography.DataProtectionScope]::CurrentUser)
+[Array]::Clear($bytes, 0, $bytes.Length)
 $shell = New-Object -ComObject WScript.Shell
 foreach ($directory in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Startup'))) {
     $shortcut = $shell.CreateShortcut((Join-Path $directory 'Google Drive Widget.lnk'))
